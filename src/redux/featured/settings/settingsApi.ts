@@ -30,6 +30,11 @@ export interface IContactAndSocial {
   youtubeUrl?: string[];
 }
 
+export type TSliderImage = {
+  image: string;
+  url?: string;
+};
+
 export interface ISettings {
   _id?: string;
   logo?: string;
@@ -41,8 +46,8 @@ export interface ISettings {
   privacyPolicy: IPrivacyPolicy;
   returnPolicy: IReturnPolicy;
   contactAndSocial: IContactAndSocial;
-  mobileMfs?: IMobileMfsItem; // ✅ Added here
-  sliderImages?: string[];
+  mobileMfs?: IMobileMfsItem;
+  sliderImages?: TSliderImage[] | string[]; // Support both old and new format
   createdAt?: string;
   updatedAt?: string;
   __v?: number;
@@ -89,6 +94,16 @@ export const settingsApi = baseApi.injectEndpoints({
       }),
 
     }),
+
+    // -------- DELETE BANNER SLIDER --------
+    deleteBannerSlider: builder.mutation<ISettingsResponse, { imageUrl: string }>({
+      query: (data) => ({
+        url: "/settings/banner-slider",
+        method: "DELETE",
+        body: data,
+      }),
+
+    }),
   }),
 });
 
@@ -96,4 +111,5 @@ export const {
   useGetSettingsQuery,
   useCreateSettingsMutation,
   useUpdateSettingsMutation,
+  useDeleteBannerSliderMutation,
 } = settingsApi;
