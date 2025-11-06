@@ -453,7 +453,7 @@ const MAX_LOGO_SIZE = 3 * 1024 * 1024; // 3MB
                       </p>
                     ) : (
                       <p className="text-gray-400 text-xs mt-1">
-                        💡 Example: google.com, facebook.com/page
+                        💡 Example: www.google.com or https://facebook.com/page
                       </p>
                     )}
                   </div>
