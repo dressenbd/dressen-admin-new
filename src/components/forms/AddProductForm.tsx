@@ -398,7 +398,7 @@ export default function AddProductForm() {
               />
 
               {/* Wholesale Price */}
-              <FormField
+              {/* <FormField
                 control={form.control}
                 name="productInfo.wholeSalePrice"
                 render={({ field }) => (
@@ -420,17 +420,17 @@ export default function AddProductForm() {
                     <FormMessage className="text-red-500 animate-shake" />
                   </FormItem>
                 )}
-              />
+              /> */}
             </div>
           </section>
 
           {/* Commission Settings */}
-          <section className="space-y-4 border p-5 rounded-lg bg-gray-50">
+          {/* <section className="space-y-4 border p-5 rounded-lg bg-gray-50">
             <h2 className="text-xl font-semibold text-gray-700 border-b pb-2">
               Commission Settings
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Retail Comission */}
+              
               <FormField
                 control={form.control}
                 name="commission.regularType"
@@ -476,7 +476,7 @@ export default function AddProductForm() {
                 )}
               />
 
-              {/* Wholesale Commission */}
+              
               <FormField
                 control={form.control}
                 name="commission.retailType"
@@ -522,7 +522,7 @@ export default function AddProductForm() {
                 )}
               />
             </div>
-          </section>
+          </section> */}
 
           {/* Quantity & SKU */}
           <section className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -77,11 +77,11 @@ export default function ProductTable({
             <TableHead className="px-2 py-1 text-xs sm:text-sm">Price</TableHead>
 
             {/* ✅ Hide Wholesale column on "On Sale" tab */}
-            {activeFilter !== "On Sale" && (
+            {/* {activeFilter !== "On Sale" && (
               <TableHead className="px-2 py-1 text-xs sm:text-sm text-center">
                 Wholesale Price
               </TableHead>
-            )}
+            )} */}
 
             <TableHead className="px-2 py-1 text-xs sm:text-sm">Created Date</TableHead>
             <TableHead className="px-2 py-1 text-xs sm:text-sm">Order</TableHead>
@@ -157,11 +157,11 @@ export default function ProductTable({
                   </TableCell>
 
                   {/* ✅ Show Wholesale column except on "On Sale" tab */}
-                  {activeFilter !== "On Sale" && (
+                  {/* {activeFilter !== "On Sale" && (
                     <TableCell className="px-2 py-1 text-sm text-blue-600 font-medium text-center">
                       {info.wholeSalePrice ? `৳${info.wholeSalePrice}` : "—"}
                     </TableCell>
-                  )}
+                  )} */}
 
                   <TableCell className="px-2 py-1 text-sm whitespace-nowrap">
                     {new Date(product.createdAt).toLocaleDateString()}

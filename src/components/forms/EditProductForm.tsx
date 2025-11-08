@@ -428,7 +428,7 @@ export default function EditProductForm({ id }: { id: string }) {
                 )}
               />
 
-              <FormField
+              {/* <FormField
                 control={form.control}
                 name="productInfo.wholeSalePrice"
                 render={({ field }) => (
@@ -447,7 +447,7 @@ export default function EditProductForm({ id }: { id: string }) {
                     <FormMessage />
                   </FormItem>
                 )}
-              />
+              /> */}
 
               <FormField
                 control={form.control}
@@ -484,12 +484,11 @@ export default function EditProductForm({ id }: { id: string }) {
               />
             </div>
           </div>
-          <section className="space-y-4 border p-5 rounded-lg bg-gray-50">
+          {/* <section className="space-y-4 border p-5 rounded-lg bg-gray-50">
             <h2 className="text-xl font-semibold text-gray-700 border-b pb-2">
               Commission Settings
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Retail Commission */}
               <FormField
                 control={form.control}
                 name="commission.regularType"
@@ -534,8 +533,6 @@ export default function EditProductForm({ id }: { id: string }) {
                   </FormItem>
                 )}
               />
-
-              {/* Wholesale Commission */}
               <FormField
                 control={form.control}
                 name="commission.retailType"
@@ -581,7 +578,7 @@ export default function EditProductForm({ id }: { id: string }) {
                 )}
               />
             </div>
-          </section>
+          </section> */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}

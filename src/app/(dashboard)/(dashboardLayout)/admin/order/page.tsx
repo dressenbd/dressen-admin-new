@@ -420,7 +420,7 @@ const OrderPage = () => {
                   >
                     Sort by: Customer
                   </button>
-                  <button
+                  {/* <button
                     onClick={() => {
                       setSortType("sr");
                       setIsOpen(false);
@@ -428,7 +428,7 @@ const OrderPage = () => {
                     className="block w-full text-left  px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors rounded-md"
                   >
                     Sort by: SR
-                  </button>
+                  </button> */}
                 </div>
               </div>
             )}
