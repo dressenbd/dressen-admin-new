@@ -1,5 +1,6 @@
 "use client"
 import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 import {
   useGetBalanceQuery,
   useCreateOrderMutation,
@@ -63,13 +64,42 @@ export default function SteadfastApiTester() {
   const handleCreateOrder = async () => {
     try {
       const result = await createOrder(orderForm).unwrap();
+      console.log('Courier API Response:', result);
+      
+      // Check if the response contains validation errors
+      const resultData = result as any;
+      if (resultData.data?.status === 400 && resultData.data?.errors) {
+        const errors = resultData.data.errors;
+        const errorMessages = Object.entries(errors)
+          .map(([field, messages]) => `${field}: ${(messages as string[]).join(', ')}`)
+          .join('\n');
+        
+        setOrderResult({ success: false, error: errorMessages });
+        toast.error(`Validation Error:\n${errorMessages}`);
+        return;
+      }
+      
+      const trackingCode = resultData.data?.consignment?.tracking_code || resultData.consignment?.tracking_code || 'N/A';
       setOrderResult({ success: true, data: result });
+      toast.success(`Courier order created successfully! Tracking: ${trackingCode}`);
+      
+      // Reset form after successful creation
+      setOrderForm({
+        invoice: '',
+        recipient_name: '',
+        recipient_phone: '',
+        recipient_address: '',
+        cod_amount: 0,
+        item_description: '',
+        total_lot: 1
+      });
     } catch (err) {
       const error = err as APIError;
       setOrderResult({
         success: false,
         error: error?.data?.message || error?.message || "Something went wrong",
       });
+      toast.error(`Failed to create courier order: ${error?.data?.message || error?.message || "Something went wrong"}`);
     }
   };
 
@@ -220,7 +250,12 @@ export default function SteadfastApiTester() {
                     type="text"
                     placeholder="01712345678"
                     value={orderForm.recipient_phone}
-                    onChange={(e) => setOrderForm({ ...orderForm, recipient_phone: e.target.value })}
+                    onChange={(e) => {
+                      let phone = e.target.value.replace(/\D/g, ''); // Remove non-digits
+                      if (phone.startsWith('88')) phone = phone.substring(2); // Remove country code if present
+                      if (phone.length > 0 && !phone.startsWith('0')) phone = '0' + phone; // Add leading 0
+                      setOrderForm({ ...orderForm, recipient_phone: phone });
+                    }}
                     className="w-full border border-gray-300 rounded px-3 py-2"
                   />
                 </div>
@@ -273,14 +308,14 @@ export default function SteadfastApiTester() {
                 {orderLoading ? 'Creating...' : 'Create Order'}
               </button>
             </div>
-            {orderResult && orderResult.data && orderResult.data.consignment && (
+            {orderResult && orderResult.data && (orderResult.data.consignment || orderResult.data.data?.consignment) && (
               <div className={`mt-4 p-4 rounded ${orderResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-semibold">Consignment Result</h3>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {Object.entries(orderResult.data.consignment)
+                  {Object.entries(orderResult.data.data?.consignment || orderResult.data.consignment || {})
                     .filter(([key]) => !['recipient_email', 'alternative_phone', 'note'].includes(key))
                     .map(([key, value]) => (
                       <div key={key} className="bg-slate-50 p-3 rounded-lg flex items-start justify-between border border-slate-100 relative">

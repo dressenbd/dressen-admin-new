@@ -86,7 +86,7 @@ export default function SettingsTab() {
       }
 
       // 🔍 Debug (optional)
-      console.log("=== FormData Contents ===");
+      
       for (const pair of formData.entries()) {
         console.log(pair[0], pair[1]);
       }

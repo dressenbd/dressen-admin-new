@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState, useEffect, useRef } from "react";
+import toast from 'react-hot-toast';
 import * as Tabs from "@radix-ui/react-tabs";
 import { useReactToPrint } from "react-to-print";
 import { CircleChevronUp, CircleChevronDown, Search } from "lucide-react";
@@ -25,7 +26,11 @@ import {
 import {
   useGetAllOrdersQuery,
   useUpdateOrderStatusMutation,
+  useUpdateOrderMutation,
 } from "@/redux/featured/order/orderApi";
+import {
+  useCreateOrderMutation as useSteadfastCreateOrderMutation,
+} from "@/redux/featured/courier/steadfastApi";
 
 type OrderStatus =
   | "pending"
@@ -60,10 +65,23 @@ const OrderPage = () => {
   const { data: orderData = [] } = useGetAllOrdersQuery();
 
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
+  const [updateOrder] = useUpdateOrderMutation();
+  const [createCourierOrder, { isLoading: courierLoading }] = useSteadfastCreateOrderMutation();
 
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<OrderStatus>("pending");
   const [searchValue, setSearchValue] = useState("");
+  const [showCourierModal, setShowCourierModal] = useState(false);
+  const [selectedOrderForCourier, setSelectedOrderForCourier] = useState<any>(null);
+  const [courierForm, setCourierForm] = useState({
+    invoice: '',
+    recipient_name: '',
+    recipient_phone: '',
+    recipient_address: '',
+    cod_amount: 0,
+    item_description: '',
+    total_lot: 1
+  });
 
   const [sortType, setSortType] = useState<"customer" | "sr">("customer");
   const [startDate, setStartDate] = useState("");
@@ -105,8 +123,7 @@ const OrderPage = () => {
         created: new Date(raw.createdAt).toLocaleString(),
         createdAt: raw.createdAt,
         customer:
-          `${raw.customerInfo.firstName} ${raw.customerInfo.lastName}`.trim() ||
-          "Unknown",
+          raw.customerInfo?.fullName || "Unknown",
         total: raw.totalAmount || 0,
         status: orderStatus, // Use the validated status
         userType: userRole === "sr" ? "sr" : "customer",
@@ -137,6 +154,27 @@ const OrderPage = () => {
     orderId: string,
     newStatus: OrderStatus
   ) => {
+    // Check if status change should trigger courier order creation
+    if ((newStatus === "processing" || newStatus === "at-local-facility") && !ordersWithCourier.has(orderId)) {
+      const rawOrder = orderData.find((o: any) => o._id === orderId);
+      if (rawOrder) {
+        setSelectedOrderForCourier(rawOrder);
+        setPendingStatusUpdate({ orderId, newStatus });
+        setCourierForm({
+          invoice: rawOrder._id,
+          recipient_name: (rawOrder.customerInfo as any)?.fullName || "Unknown",
+          recipient_phone: rawOrder.customerInfo?.phone || "",
+          recipient_address: rawOrder.customerInfo?.address || "",
+          cod_amount: rawOrder.totalAmount || 0,
+          item_description: rawOrder.orderInfo?.map((item: any) => item?.productInfo?.description?.name).join(", ") || "",
+          total_lot: rawOrder.totalQuantity || 1
+        });
+        setCourierResult(null); // Reset previous results
+        setShowCourierModal(true);
+        return; // Don't update status yet, wait for courier order creation
+      }
+    }
+
     try {
       await updateOrderStatus({ id: orderId, status: newStatus }).unwrap();
 
@@ -172,11 +210,15 @@ const OrderPage = () => {
       setOrdersByStatus(updatedOrdersByStatus);
       setExpandedOrder(null);
     } catch (err: any) {
-      console.error(
-        "Failed to update status:",
-        err?.data?.message || err.message
-      );
-      alert("Failed to update status!");
+      console.error("Failed to update status:", {
+        error: err,
+        data: err?.data,
+        message: err?.data?.message || err?.message,
+        status: err?.status,
+        orderId,
+        newStatus
+      });
+      toast.error(`Failed to update status: ${err?.data?.message || err?.message || 'Unknown error'}`);
     }
   };
 
@@ -211,6 +253,112 @@ const OrderPage = () => {
     startIndex,
     startIndex + itemsPerPage
   );
+
+  const [courierResult, setCourierResult] = useState<any>(null);
+  const [ordersWithCourier, setOrdersWithCourier] = useState<Set<string>>(new Set());
+  const [pendingStatusUpdate, setPendingStatusUpdate] = useState<{orderId: string, newStatus: OrderStatus} | null>(null);
+
+  const handleCourierOrderCreate = async () => {
+    try {
+      const result = await createCourierOrder(courierForm).unwrap();
+      console.log('Courier API Response:', result);
+      
+      // Check if the response contains validation errors
+      const resultData = result as any;
+      if (resultData.data?.status === 400 && resultData.data?.errors) {
+        const errors = resultData.data.errors;
+        const errorMessages = Object.entries(errors)
+          .map(([field, messages]) => `${field}: ${(messages as string[]).join(', ')}`)
+          .join('\n');
+        
+        setCourierResult({ success: false, error: errorMessages });
+        toast.error(`Validation Error:\n${errorMessages}`);
+        return;
+      }
+      
+      setCourierResult({ success: true, data: result });
+      const trackingCode = resultData.data?.consignment?.tracking_code || resultData.consignment?.tracking_code || 'N/A';
+      
+      // Update order with Steadfast tracking code
+      if (selectedOrderForCourier && trackingCode !== 'N/A') {
+        try {
+          await updateOrder({ 
+            id: selectedOrderForCourier._id, 
+            payload: { trackingNumber: trackingCode }
+          }).unwrap();
+        } catch (updateError) {
+          console.error('Failed to update tracking number:', updateError);
+        }
+      }
+      
+      // Mark this order as having a courier order
+      if (selectedOrderForCourier) {
+        setOrdersWithCourier(prev => new Set([...prev, selectedOrderForCourier._id]));
+      }
+      
+      // Now update the status if there was a pending status update
+      if (pendingStatusUpdate) {
+        try {
+          await updateOrderStatus({ 
+            id: pendingStatusUpdate.orderId, 
+            status: pendingStatusUpdate.newStatus 
+          }).unwrap();
+          
+          // Update local state
+          const currentStatus = Object.keys(ordersByStatus).find((status) =>
+            ordersByStatus[status as OrderStatus].some(
+              (o) => o.order_id === pendingStatusUpdate.orderId
+            )
+          ) as OrderStatus;
+
+          if (currentStatus) {
+            const updatedOrder = ordersByStatus[currentStatus].find(
+              (o) => o.order_id === pendingStatusUpdate.orderId
+            );
+            if (updatedOrder) {
+              const newOrder = { ...updatedOrder, status: pendingStatusUpdate.newStatus };
+              const updatedOrdersByStatus = {
+                ...ordersByStatus,
+                [currentStatus]: ordersByStatus[currentStatus].filter(
+                  (o) => o.order_id !== pendingStatusUpdate.orderId
+                ),
+                [pendingStatusUpdate.newStatus]: [newOrder, ...ordersByStatus[pendingStatusUpdate.newStatus]],
+              };
+              setOrdersByStatus(updatedOrdersByStatus);
+            }
+          }
+          
+          toast.success(`Courier order created successfully! Tracking: ${trackingCode}\nOrder status updated to ${pendingStatusUpdate.newStatus}`);
+        } catch (statusError: any) {
+          console.error('Status update failed after courier creation:', statusError);
+          toast.success(`Courier order created successfully! Tracking: ${trackingCode}\nPlease manually update the order status.`);
+        }
+      } else {
+        toast.success(`Courier order created successfully! Tracking: ${trackingCode}`);
+      }
+      
+      // Reset form and close modal
+      setCourierForm({
+        invoice: '',
+        recipient_name: '',
+        recipient_phone: '',
+        recipient_address: '',
+        cod_amount: 0,
+        item_description: '',
+        total_lot: 1
+      });
+      setShowCourierModal(false);
+      setSelectedOrderForCourier(null);
+      setPendingStatusUpdate(null);
+    } catch (err) {
+      const error = err as { data?: { message?: string; success?: boolean }; message?: string; success?: boolean };
+      setCourierResult({
+        success: false,
+        error: error?.data?.message || error?.message || "Something went wrong",
+      });
+      toast.error(`Failed to create courier order: ${error?.data?.message || error?.message || "Something went wrong"}`);
+    }
+  };
 
   useEffect(() => {
     setCurrentPage(1); // reset page when filters change
@@ -343,8 +491,8 @@ const OrderPage = () => {
                 </TableHeader>
                 <TableBody>
                   {status === activeTab &&
-                    paginatedOrders.map((item) => (
-                      <TableRow key={item.order_id}>
+                    paginatedOrders.map((item, index) => (
+                      <TableRow key={`${item.order_id}-${index}`}>
                         <TableCell className="text-center">
                           <button
                             className="rounded-full border p-1 text-gray-500"
@@ -370,26 +518,27 @@ const OrderPage = () => {
                         <TableCell>{item.customer}</TableCell>
                         <TableCell>৳{item.total}</TableCell>
                         <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button
-                                className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md capitalize ${
-                                  item.status === "pending"
-                                    ? "bg-yellow-100 text-yellow-800"
-                                    : item.status === "processing"
-                                    ? "bg-purple-100 text-purple-800"
-                                    : item.status === "at-local-facility"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : item.status === "delivered"
-                                    ? "bg-cyan-100 text-cyan-800"
-                                    : item.status === "paid"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-red-100 text-red-800"
-                                }`}
-                              >
-                                {item.status.replace("-", " ")}
-                              </button>
-                            </DropdownMenuTrigger>
+                          <div className="flex items-center gap-2">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md capitalize ${
+                                    item.status === "pending"
+                                      ? "bg-yellow-100 text-yellow-800"
+                                      : item.status === "processing"
+                                      ? "bg-purple-100 text-purple-800"
+                                      : item.status === "at-local-facility"
+                                      ? "bg-blue-100 text-blue-800"
+                                      : item.status === "delivered"
+                                      ? "bg-cyan-100 text-cyan-800"
+                                      : item.status === "paid"
+                                      ? "bg-green-100 text-green-800"
+                                      : "bg-red-100 text-red-800"
+                                  }`}
+                                >
+                                  {item.status.replace("-", " ")}
+                                </button>
+                              </DropdownMenuTrigger>
                             <DropdownMenuContent>
                               {ORDER_STATUSES.map((statusOption) => (
                                 <DropdownMenuItem
@@ -406,7 +555,13 @@ const OrderPage = () => {
                                 </DropdownMenuItem>
                               ))}
                             </DropdownMenuContent>
-                          </DropdownMenu>
+                            </DropdownMenu>
+                            {ordersWithCourier.has(item.order_id) && (
+                              <span className="text-xs bg-green-100 text-green-700 px-1 py-0.5 rounded" title="Courier order created">
+                                📦
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -553,8 +708,7 @@ const OrderPage = () => {
                       <div className="text-sm space-y-1">
                         <p>
                           <span className="font-semibold">Name:</span>{" "}
-                          {rawOrder.customerInfo.firstName}{" "}
-                          {rawOrder.customerInfo.lastName}
+                          {(rawOrder.customerInfo as any)?.fullName || "Unknown"}
                         </p>
                         <p>
                           <span className="font-semibold">Phone:</span>{" "}
@@ -574,7 +728,9 @@ const OrderPage = () => {
                       <div className="text-sm space-y-1">
                         <p>
                           <span className="font-semibold">Method:</span>{" "}
-                          {rawOrder.paymentInfo}
+                          {typeof rawOrder.paymentInfo === 'string' 
+                            ? rawOrder.paymentInfo 
+                            : (rawOrder.paymentInfo as any)?.method || "Unknown"}
                         </p>
                         <p>
                           <span className="font-semibold">Total:</span> ৳
@@ -633,6 +789,151 @@ const OrderPage = () => {
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* Courier Order Creation Modal */}
+      {showCourierModal && (
+        <div className="bg-[#00000085] fixed top-0 left-0 w-[100vw] h-[100vh] flex items-center justify-center z-50">
+          <div className="relative bg-white p-6 rounded-xl shadow-2xl w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="text-xl font-semibold">Create Courier Order</h2>
+                {pendingStatusUpdate && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Status will be updated to: <span className="font-medium capitalize">{pendingStatusUpdate.newStatus.replace("-", " ")}</span>
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setShowCourierModal(false);
+                  setSelectedOrderForCourier(null);
+                  setPendingStatusUpdate(null);
+                  setCourierResult(null);
+                }}
+                className="text-gray-500 hover:text-gray-800 text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Number *</label>
+                  <input
+                    type="text"
+                    value={courierForm.invoice}
+                    onChange={(e) => setCourierForm({ ...courierForm, invoice: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Name *</label>
+                  <input
+                    type="text"
+                    value={courierForm.recipient_name}
+                    onChange={(e) => setCourierForm({ ...courierForm, recipient_name: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
+                  <input
+                    type="text"
+                    value={courierForm.recipient_phone}
+                    onChange={(e) => setCourierForm({ ...courierForm, recipient_phone: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">COD Amount *</label>
+                  <input
+                    type="number"
+                    value={courierForm.cod_amount}
+                    onChange={(e) => setCourierForm({ ...courierForm, cod_amount: Number(e.target.value) })}
+                    className="w-full border border-gray-300 rounded px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Total Lot</label>
+                  <input
+                    type="number"
+                    value={courierForm.total_lot}
+                    onChange={(e) => setCourierForm({ ...courierForm, total_lot: Number(e.target.value) })}
+                    className="w-full border border-gray-300 rounded px-3 py-2"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Address *</label>
+                <textarea
+                  value={courierForm.recipient_address}
+                  onChange={(e) => setCourierForm({ ...courierForm, recipient_address: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Item Description</label>
+                <textarea
+                  value={courierForm.item_description}
+                  onChange={(e) => setCourierForm({ ...courierForm, item_description: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  rows={2}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={handleCourierOrderCreate}
+                  disabled={courierLoading}
+                  className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 disabled:bg-gray-400"
+                >
+                  {courierLoading ? 'Creating...' : 'Create Courier Order'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCourierModal(false);
+                    setSelectedOrderForCourier(null);
+                    setPendingStatusUpdate(null);
+                    setCourierResult(null);
+                  }}
+                  className="bg-gray-600 text-white px-6 py-2 rounded hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+              </div>
+
+              {courierResult && courierResult.data && (courierResult.data.consignment || courierResult.data.data?.consignment) && (
+                <div className={`mt-4 p-4 rounded ${courierResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">Consignment Result</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {Object.entries(courierResult.data.data?.consignment || courierResult.data.consignment || {})
+                      .filter(([key]) => !['recipient_email', 'alternative_phone', 'note'].includes(key))
+                      .map(([key, value]) => (
+                        <div key={key} className="bg-slate-50 p-3 rounded-lg flex items-start justify-between border border-slate-100 relative">
+                          <div>
+                            <div className="text-xs text-slate-400">{key.replace(/_/g, ' ').toUpperCase()}</div>
+                            <div className="mt-1 font-medium text-sm break-words">{String(value ?? '—')}</div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {courierResult && !courierResult.success && (
+                <div className="mt-4 p-4 rounded bg-red-50 border border-red-200">
+                  <p className="text-red-800">{courierResult.error}</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

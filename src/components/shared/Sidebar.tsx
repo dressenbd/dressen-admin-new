@@ -523,6 +523,13 @@ export function AppSidebar({
         {/* Admin: আগের মত পুরো মেনু */}
         {role === "admin" && (
           <>
+            <div className="ml-1">
+              {renderSection(
+                "ORDER MANAGEMENT",
+                navigationItems.orderManagement
+              )}
+            </div>
+
             <div key="product-management" className="space-y-2">
               {!isCollapsed && (
                 <h3 className="px-4 py-2 text-left uppercase text-xs font-semibold text-gray-400 tracking-wider transition-opacity duration-200">
@@ -552,13 +559,6 @@ export function AppSidebar({
               {renderSection(
                 "WITHDRAWALS MANAGEMENT",
                 navigationItems.WithdrawalsManagement
-              )}
-            </div>
-
-            <div className="ml-1">
-              {renderSection(
-                "ORDER MANAGEMENT",
-                navigationItems.orderManagement
               )}
             </div>
 

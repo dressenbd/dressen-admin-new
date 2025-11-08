@@ -1,5 +1,6 @@
 import { combineReducers, configureStore } from "@reduxjs/toolkit";
 import { baseApi } from "./api/baseApi";
+import { steadfastApi } from "./featured/courier/steadfastApi";
 import authReducer from "@/redux/featured/auth/authSlice";
 import productReducer from '@/redux/featured/products/productSlice';
 import categoryReducer from '@/redux/featured/categories/categorySlice';
@@ -18,6 +19,7 @@ import storage from "redux-persist/lib/storage";
 
 const rootReducer = combineReducers({
   [baseApi.reducerPath]: baseApi.reducer,
+  [steadfastApi.reducerPath]: steadfastApi.reducer,
   auth: authReducer,
   products: productReducer,
   category: categoryReducer,
@@ -40,7 +42,7 @@ export const store = configureStore({
       serializableCheck: {
         ignoredActions: [REHYDRATE, PERSIST, REGISTER],
       },
-    }).concat(baseApi.middleware),
+    }).concat(baseApi.middleware, steadfastApi.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

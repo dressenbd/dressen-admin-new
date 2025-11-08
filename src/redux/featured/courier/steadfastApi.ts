@@ -2,8 +2,22 @@
 // STEADFAST API (Fixed Simple Version)
 // ==========================
 
-import { baseApi } from "@/redux/api/baseApi";
+import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { Key } from "readline";
+import { RootState } from "@/redux/store";
+
+// Separate base query for Steadfast API
+const steadfastBaseQuery = fetchBaseQuery({
+  baseUrl: process.env.NEXT_PUBLIC_BASE_API || 'http://localhost:5000/api/v1',
+  credentials: "include",
+  prepareHeaders: (headers, { getState }) => {
+    const token = (getState() as RootState).auth.token;
+    if (token) {
+      headers.set("authorization", `${token}`);
+    }
+    return headers;
+  },
+});
 
 // ==========================
 // TYPES
@@ -23,10 +37,25 @@ export interface ISteadfastOrder {
 }
 
 export interface ISteadfastOrderResponse {
-  consignment_id: string;
-  tracking_code: string;
-  status: string;
-  invoice: string;
+  status: number;
+  message: string;
+  consignment: {
+    consignment_id: string;
+    tracking_code: string;
+    status: string;
+    invoice: string;
+    recipient_name: string;
+    recipient_phone: string;
+    recipient_address: string;
+    cod_amount: number;
+    item_description: string;
+    total_lot: number;
+    created_at: string;
+    updated_at: string;
+    alternative_phone?: string | null;
+    recipient_email?: string | null;
+    note?: string;
+  };
 }
 
 export interface ISteadfastReturnRequest {
@@ -69,13 +98,18 @@ interface ApiResponse<T> {
 // ==========================
 // RTK QUERY
 // ==========================
-export const steadfastApi = baseApi.injectEndpoints({
+export const steadfastApi = createApi({
+  reducerPath: "steadfastApi",
+  baseQuery: steadfastBaseQuery,
+  tagTypes: [],
   endpoints: (builder) => ({
     // 💰 Get Balance
     getBalance: builder.query<ISteadfastBalance, void>({
-      query: () => "/steadfast/balance",
-      transformResponse: (response: ApiResponse<ISteadfastBalance>) => response.data,
-
+      query: () => ({
+        url: "/steadfast/balance",
+        method: "GET",
+      }),
+      transformResponse: (response: any) => response.data || response,
     }),
 
     // 📦 Create Order
@@ -85,7 +119,7 @@ export const steadfastApi = baseApi.injectEndpoints({
         method: "POST",
         body: orderData,
       }),
-      transformResponse: (response: ApiResponse<ISteadfastOrderResponse>) => response.data,
+      transformResponse: (response: ISteadfastOrderResponse) => response,
     }),
 
     // 📦 Bulk Create Orders
