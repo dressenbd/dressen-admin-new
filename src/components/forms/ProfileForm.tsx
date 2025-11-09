@@ -13,7 +13,7 @@ export default function ProfileForm({ mode = "view" }: ProfileFormProps) {
     <>
       <ProfileFormHeader isViewMode={isViewMode} />
 
-      <ProfileFormBasicInfo isViewMode={isViewMode} />
+      {/* <ProfileFormBasicInfo isViewMode={isViewMode} /> */}
 
       {/* Save Button */}
       {!isViewMode && (

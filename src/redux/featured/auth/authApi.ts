@@ -118,6 +118,15 @@ export const authApi = baseApi.injectEndpoints({
         method: "GET",
       }),
     }),
+
+    // Change Admin Password
+    changeAdminPassword: builder.mutation({
+      query: (data) => ({
+        url: "/auth/admin/change-password",
+        method: "POST",
+        body: data,
+      }),
+    }),
   }),
 });
 
@@ -133,4 +142,5 @@ export const {
   useResetPasswordWithOtpMutation,
   useResetPasswordMutation,
   useGetMeQuery,
+  useChangeAdminPasswordMutation,
 } = authApi;

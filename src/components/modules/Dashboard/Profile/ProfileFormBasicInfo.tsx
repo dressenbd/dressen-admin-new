@@ -14,7 +14,7 @@ interface ProfileFormBasicInfoProps {
 
 const ProfileFormBasicInfo = ({ isViewMode }: ProfileFormBasicInfoProps) => {
   const [phoneNumber, setPhoneNumber] = useState<string | undefined>(
-    "+1 406 555 0120"
+    "+14065550120"
   );
   return (
     <>

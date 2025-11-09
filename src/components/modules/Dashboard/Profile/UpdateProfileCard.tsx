@@ -10,7 +10,7 @@ const UpdateProfileCard = () => {
     <div className="bg-white rounded-xl shadow p-6 space-y-6">
       <div className="flex justify-between">
         <h2 className="font-bold opacity-80 text-lg">Profile Update</h2>
-        <ReusableDialog
+        {/* <ReusableDialog
           trigger={
             <Button
               variant="outline"
@@ -24,12 +24,12 @@ const UpdateProfileCard = () => {
               w-11/12 max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl xl:max-w-4xl"
         >
           <ProfileForm mode="edit" />
-        </ReusableDialog>
+        </ReusableDialog> */}
       </div>
       <ProfileForm mode="view" />
 
       {/* biography */}
-      <div className="relative ">
+      {/* <div className="relative ">
         <Textarea
           label="Biography"
           placeholder="Enter a biography about you"
@@ -50,7 +50,7 @@ const UpdateProfileCard = () => {
             </div>
           </>
         </ReusableDialog>
-      </div>
+      </div> */}
     </div>
   );
 };

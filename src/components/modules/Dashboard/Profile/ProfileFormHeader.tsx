@@ -3,11 +3,15 @@ import { CameraIcon, Clock4 } from "lucide-react";
 import Image from "next/image";
 import React from "react";
 import UploadImage from "./UploadImage";
+import { useAppSelector } from "@/redux/hooks";
+import { selectCurrentUser } from "@/redux/featured/auth/authSlice";
 interface ProfileFormHeaderProps {
   isViewMode: boolean;
 }
 
 const ProfileFormHeader = ({ isViewMode }: ProfileFormHeaderProps) => {
+  const user = useAppSelector(selectCurrentUser);
+  
   return (
     <>
       {/* Profile Image & Info */}
@@ -23,13 +27,13 @@ const ProfileFormHeader = ({ isViewMode }: ProfileFormHeaderProps) => {
               />
             </div>
             <div>
-              <h2 className="font-semibold text-lg opacity-90">Wade Warren</h2>
-              <p className="text-sm opacity-60">System Admin</p>
+              <h2 className="font-semibold text-lg opacity-90">{user?.name || "User Name"}</h2>
+              <p className="text-sm opacity-60">{user?.role || "User"}</p>
               <button
                 className="bg-green-100 text-xs px-[10px] py-[2px] rounded-full text-green-500
               flex items-center gap-1"
               >
-                <Clock4 size={12} /> Active
+                <Clock4 size={12} /> {user?.status || "Active"}
               </button>
             </div>
           </div>
