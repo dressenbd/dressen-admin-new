@@ -183,11 +183,6 @@ export function AppSidebar({
           label: "Create Order",
           href: "/admin/create-order",
         },
-        {
-          icon: Package as IconRenderer,
-          label: "Bulk Orders",
-          href: "/admin/bulk-orders",
-        },
       ],
       settingManagement: [
         {
