@@ -175,14 +175,19 @@ export function AppSidebar({
       orderManagement: [
         {
           icon: ShoppingCart as IconRenderer,
-          label: "Orders",
+          label: "All Orders",
           href: "/admin/order",
         },
-        // {
-        //   icon: ArrowRightLeft as IconRenderer,
-        //   label: "Transactions",
-        //   href: "/admin/transaction",
-        // },
+        {
+          icon: Plus as IconRenderer,
+          label: "Create Order",
+          href: "/admin/create-order",
+        },
+        {
+          icon: Package as IconRenderer,
+          label: "Bulk Orders",
+          href: "/admin/bulk-orders",
+        },
       ],
       settingManagement: [
         {
@@ -523,11 +528,20 @@ export function AppSidebar({
         {/* Admin: আগের মত পুরো মেনু */}
         {role === "admin" && (
           <>
-            <div className="ml-1">
-              {renderSection(
-                "ORDER MANAGEMENT",
-                navigationItems.orderManagement
+            <div key="order-management" className="space-y-2">
+              {!isCollapsed && (
+                <h3 className="px-4 py-2 text-left uppercase text-xs font-semibold text-gray-400 tracking-wider transition-opacity duration-200">
+                  ORDER MANAGEMENT
+                </h3>
               )}
+              <div className="ml-1">
+                {renderCollapsible(
+                  ShoppingCart,
+                  "Orders",
+                  navigationItems.orderManagement,
+                  "adminOrderManagement"
+                )}
+              </div>
             </div>
 
             <div key="product-management" className="space-y-2">

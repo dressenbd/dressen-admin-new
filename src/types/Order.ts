@@ -1,12 +1,12 @@
 export interface ShippingInfo {
   name: string;
-  type: string;
+  type: "free" | "percentage" | "amount";
 }
 
 export interface OrderTotalAmount {
   subTotal: number;
-  tax: number;
-  shipping: ShippingInfo;
+  tax?: number;
+  shipping?: ShippingInfo;
   discount: number;
   total: number;
 }
@@ -26,15 +26,16 @@ export interface OrderItem {
   isCancelled: boolean;
   quantity: number;
   totalAmount: OrderTotalAmount;
-  commission?: Commission; // ✅ added commission
+  commission?: Commission;
 }
 
 export interface CustomerInfo {
-  firstName: string;
-  lastName: string;
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
-  phone?: string;
-  address?: string;
+  phone: string;
+  address: string;
   city?: string;
   postalCode?: string;
   country?: string;
@@ -48,11 +49,11 @@ export interface Order {
     name: string;
     email?: string;
   };
-  trackingNumber:string,
+  trackingNumber: string;
   orderInfo: OrderItem[];
   customerInfo: CustomerInfo;
-  paymentInfo: string;
-  status?: string;
+  paymentInfo: string | { cardNumber?: string; nameOnCard?: string };
+  status?: "pending" | "paid" | "processing" | "shipped" | "delivered" | "cancelled";
   totalAmount: number;
   createdAt: string;
   updatedAt: string;
@@ -61,4 +62,40 @@ export interface Order {
   totalCommission?: number;
   commissionRate?: number;
   averagePercentageRate?: number;
+}
+
+// Admin-specific order interfaces
+export interface AdminOrderItem {
+  productInfo: string;
+  quantity: number;
+  totalAmount: {
+    subTotal: number;
+    discount: number;
+    total: number;
+    shipping?: { name: string; type: "free" | "percentage" | "amount" };
+  };
+  commission: {
+    type: "percentage" | "fixed";
+    value: number;
+    amount: number;
+  };
+}
+
+export interface AdminOrderPayload {
+  orderSource: "phone" | "walk-in" | "online" | "whatsapp" | "facebook";
+  customerInfo: {
+    fullName: string;
+    phone: string;
+    address: string;
+    email?: string;
+    city?: string;
+    country?: string;
+  };
+  orderInfo: AdminOrderItem[];
+  paymentInfo: "cash-on" | { cardNumber?: string; nameOnCard?: string };
+  status?: "pending" | "paid" | "processing";
+  totalAmount: number;
+  adminNotes?: string;
+  customerType?: "new" | "existing" | "guest";
+  assignedSR?: string;
 }

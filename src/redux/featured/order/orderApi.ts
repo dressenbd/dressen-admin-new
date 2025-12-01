@@ -1,5 +1,5 @@
 import { baseApi } from "@/redux/api/baseApi";
-import { Order } from "@/types/Order";
+import { Order, AdminOrderPayload } from "@/types/Order";
 // Type for the commission summary response
 export interface CommissionSummary {
   totalOrders: number;
@@ -79,6 +79,34 @@ const orderApi = baseApi.injectEndpoints({
       query: (userId) => ({ url: `/order/my-order/${userId}`, method: "GET" }),
       transformResponse: (response: { data: Order[] }) => response.data,
     }),
+
+    // Admin order creation endpoints
+    createAdminOrder: builder.mutation<Order, AdminOrderPayload>({
+      query: (orderData) => ({
+        url: "/admin/orders/create",
+        method: "POST",
+        body: orderData,
+      }),
+      transformResponse: (response: { data: Order }) => response.data,
+    }),
+
+    createBulkAdminOrders: builder.mutation<Order[], { orders: AdminOrderPayload[] }>({
+      query: (data) => ({
+        url: "/admin/orders/bulk-create",
+        method: "POST",
+        body: data,
+      }),
+      transformResponse: (response: { data: Order[] }) => response.data,
+    }),
+
+    createQuickOrder: builder.mutation<Order, AdminOrderPayload>({
+      query: (orderData) => ({
+        url: "/admin/orders/quick-order",
+        method: "POST",
+        body: orderData,
+      }),
+      transformResponse: (response: { data: Order }) => response.data,
+    }),
   }),
 });
 
@@ -87,8 +115,11 @@ export const {
   useGetSingleOrderQuery,
   useCreateOrderMutation,
   useUpdateOrderMutation,
-  useUpdateOrderStatusMutation, // ✅ added mutation
-  useGetMyOrdersQuery, // ✅ added hook
-  useGetUserCommissionSummaryQuery, // ✅ must be exported
+  useUpdateOrderStatusMutation,
+  useGetMyOrdersQuery,
+  useGetUserCommissionSummaryQuery,
   useGetOrderSummaryQuery,
+  useCreateAdminOrderMutation,
+  useCreateBulkAdminOrdersMutation,
+  useCreateQuickOrderMutation,
 } = orderApi;
