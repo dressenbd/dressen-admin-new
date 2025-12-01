@@ -49,6 +49,13 @@ const productApi = baseApi.injectEndpoints({
       }),
       transformResponse: (response: { message: string }) => response,
     }),
+    getPromoProducts: builder.query<Product[], void>({
+      query: () => ({
+        url: '/product/promo-products',
+        method: 'GET',
+      }),
+      transformResponse: (response: { data: Product[] }) => response.data,
+    }),
   }),
 });
 
@@ -58,5 +65,6 @@ export const {
   useCreateProductMutation,
   useDeleteProductMutation,
   useUpdateProductMutation,
-  useProductInventoryQuery
+  useProductInventoryQuery,
+  useGetPromoProductsQuery
 } = productApi;

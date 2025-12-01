@@ -27,6 +27,7 @@ import {
   Settings,
   MapPin,
   ArrowRight,
+  Percent,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -133,6 +134,16 @@ export function AppSidebar({
           href: "/admin/category-management",
         },
         {
+          icon: Percent as IconRenderer,
+          label: "Promo Categories",
+          href: "/admin/promo-category-management",
+        },
+        {
+          icon: Tag as IconRenderer,
+          label: "Promo Products",
+          href: "/admin/promo-product-management",
+        },
+        {
           icon: Tag as IconRenderer,
           label: "Tags",
           href: "/admin/tag-management",
@@ -234,6 +245,7 @@ export function AppSidebar({
         //   href: "/admin/courier/return-requests",
         // },
       ],
+
       orderVendor: [
         {
           icon: ShoppingCart as IconRenderer,
@@ -553,6 +565,8 @@ export function AppSidebar({
                   "productManagement"
                 )}
                 {renderLink("/admin/category-management", Hash, "Categories")}
+                {renderLink("/admin/promo-category-management", Percent, "Promo Categories")}
+                {renderLink("/admin/promo-product-management", Tag, "Promo Products")}
                 {renderLink("/admin/tag-management", Tag, "Tags")}
                 {/* {renderLink("/admin/brand-management", Box, "Brand")} */}
                 {renderLink("/admin/product-attributes", Palette, "Attributes")}

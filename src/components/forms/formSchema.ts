@@ -10,6 +10,9 @@ const brandAndCategoryZodSchema = z.object({
   tags: z
     .array(z.string({ error: () => "Tag ID must be a string!" }))
     .min(1, { message: "At least one tag is required!" }),
+  promoCategories: z
+    .array(z.string())
+    .optional(),
 });
 
 // description validation

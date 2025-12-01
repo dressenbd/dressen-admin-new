@@ -47,6 +47,20 @@ export interface Product {
       updatedAt: string;
       __v: number;
     }[];
+    subcategory?: string;
+    promoCategories?: {
+      _id: string;
+      name: string;
+      slug: string;
+      description: string;
+      image: string;
+      isActive: boolean;
+      startDate?: string;
+      endDate?: string;
+      createdAt: string;
+      updatedAt: string;
+      __v: number;
+    }[];
   };
   description: {
     name: string;

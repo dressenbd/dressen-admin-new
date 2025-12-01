@@ -32,6 +32,7 @@ import { Checkbox } from "../ui/checkbox";
 import MultipleSelector from "../ui/multiselect";
 
 import { useGetAllCategoriesQuery, useGetMainCategoriesQuery, useGetSubCategoriesQuery } from "@/redux/featured/categories/categoryApi";
+import { useGetActivePromoCategoriesQuery } from "@/redux/featured/promoCategories/promoCategoryApi";
 
 import { useAppDispatch } from "@/redux/hooks";
 import { setTags } from "@/redux/featured/tags/tagsSlice";
@@ -74,6 +75,8 @@ export default function AddProductForm() {
     useGetAllBrandsQuery(undefined);
   const { data: shopData, isLoading: isShopDataLoading } =
     useGetAllShopsQuery();
+  const { data: promoCategories, isLoading: isPromoCategoriesLoading } =
+    useGetActivePromoCategoriesQuery();
 
   const [featuredImage, setFeaturedImage] = useState<File | null>(null);
   const [galleryImage, setGalleryImage] = useState<File[]>([]);
@@ -87,6 +90,7 @@ export default function AddProductForm() {
         categories: [],
         subcategory: "",
         tags: [],
+        promoCategories: [],
       },
       description: {
         name: "",
@@ -219,6 +223,12 @@ export default function AddProductForm() {
     tagsData?.data?.map((tag: any) => ({
       value: tag._id,
       label: tag.name,
+    })) ?? [];
+
+  const simplifiedPromoCategories: Option[] =
+    promoCategories?.map((promo: any) => ({
+      value: promo._id,
+      label: promo.name,
     })) ?? [];
   const validatePrices = (
     override: Partial<ProductFormValues["productInfo"]> = {}
@@ -954,6 +964,44 @@ export default function AddProductForm() {
                         placeholder="Select tags..."
                         emptyIndicator={
                           <p className="text-center text-sm">No tags found.</p>
+                        }
+                      />
+                    )}
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Promo Categories */}
+            <FormField
+              control={form.control}
+              name="brandAndCategories.promoCategories"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Promo Categories (Offers/Deals)</FormLabel>
+                  <FormControl>
+                    {isPromoCategoriesLoading ? (
+                      <Input
+                        className="animate-pulse"
+                        placeholder="Loading Promo Categories..."
+                      />
+                    ) : (
+                      <MultipleSelector
+                        value={
+                          (field.value || [])
+                            .map((val: string) =>
+                              simplifiedPromoCategories.find((opt) => opt.value === val)
+                            )
+                            .filter(Boolean) as Option[]
+                        }
+                        onChange={(options) =>
+                          field.onChange(options.map((opt) => opt.value))
+                        }
+                        defaultOptions={simplifiedPromoCategories}
+                        placeholder="Select promo categories..."
+                        emptyIndicator={
+                          <p className="text-center text-sm">No promo categories found.</p>
                         }
                       />
                     )}
