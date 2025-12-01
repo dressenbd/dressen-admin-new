@@ -22,6 +22,7 @@ interface GeneralSettings {
   popupImage: string;
   popupDescription: string;
   popupDelay: number;
+  facebookPixelId: string;
   privacyPolicy: {
     title: string;
     description: string;
@@ -101,6 +102,7 @@ export default function GeneralSettingsPage() {
     popupImage: "",
     popupDescription: "",
     popupDelay: 2000,
+    facebookPixelId: "",
     privacyPolicy: { title: "", description: "" },
     returnPolicy: { title: "", description: "" },
     contactAndSocial: {
@@ -131,6 +133,7 @@ export default function GeneralSettingsPage() {
         popupImage: settingsData.popupImage || "",
         popupDescription: settingsData.popupDescription || "",
         popupDelay: settingsData.popupDelay || 2000,
+        facebookPixelId: settingsData.facebookPixelId || "",
         privacyPolicy: {
           title: settingsData.privacyPolicy?.title || "",
           description: settingsData.privacyPolicy?.description || "",
@@ -192,6 +195,7 @@ export default function GeneralSettingsPage() {
       formData.append("popupTitle", settings.popupTitle);
       formData.append("popupDescription", settings.popupDescription);
       formData.append("popupDelay", String(settings.popupDelay));
+      formData.append("facebookPixelId", settings.facebookPixelId);
 
       formData.append("privacyPolicy[title]", settings.privacyPolicy.title);
       formData.append("privacyPolicy[description]", settings.privacyPolicy.description);
@@ -245,8 +249,9 @@ export default function GeneralSettingsPage() {
       <h1 className="text-2xl font-bold mb-4">General Settings</h1>
 
       <Tabs defaultValue="popup" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 bg-muted p-1 rounded-xl">
+        <TabsList className="grid w-full grid-cols-4 bg-muted p-1 rounded-xl">
           <TabsTrigger value="popup">Popup</TabsTrigger>
+          <TabsTrigger value="pixel">Facebook Pixel</TabsTrigger>
           <TabsTrigger value="policy">Policies</TabsTrigger>
           <TabsTrigger value="contact">Contact & Social</TabsTrigger>
         </TabsList>
@@ -321,6 +326,23 @@ export default function GeneralSettingsPage() {
             </div>
             <p className="text-xs text-gray-500 mt-1">
               Recommended size: 1920x600px, max 3MB
+            </p>
+          </div>
+        </TabsContent>
+
+        {/* FACEBOOK PIXEL TAB */}
+        <TabsContent value="pixel" className="space-y-4 mt-6">
+          <div>
+            <label className="block mb-1 text-sm font-medium">Facebook Pixel ID</label>
+            <Input
+              placeholder="Enter Facebook Pixel ID (e.g., 1234567890123456)"
+              value={settings.facebookPixelId}
+              onChange={(e) =>
+                setSettings((prev) => ({ ...prev, facebookPixelId: e.target.value }))
+              }
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Used for Facebook Ads tracking and analytics. Find your Pixel ID in Facebook Events Manager.
             </p>
           </div>
         </TabsContent>

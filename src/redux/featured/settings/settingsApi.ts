@@ -43,6 +43,7 @@ export interface ISettings {
   popupTitle?: string;
   popupDescription?: string;
   popupDelay?: number;
+  facebookPixelId?: string;
   privacyPolicy: IPrivacyPolicy;
   returnPolicy: IReturnPolicy;
   contactAndSocial: IContactAndSocial;
