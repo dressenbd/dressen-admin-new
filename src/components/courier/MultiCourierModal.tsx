@@ -78,8 +78,12 @@ export default function MultiCourierModal({
     const required = ['store_id', 'recipient_name', 'recipient_phone', 'recipient_address', 'item_weight', 'amount_to_collect'];
     return required.every(field => {
       const value = pathaoForm[field as keyof PathaoForm];
-      if (field === 'store_id' || field === 'amount_to_collect') return Number(value) > 0;
-      if (field === 'recipient_phone') return value && value.toString().length >= 11;
+      if (field === 'store_id') return Number(value) > 0;
+      if (field === 'amount_to_collect') return Number(value) >= 0;
+      if (field === 'recipient_phone') return value && value.toString().length === 11;
+      if (field === 'recipient_name') return value && value.toString().length >= 3 && value.toString().length <= 100;
+      if (field === 'recipient_address') return value && value.toString().length >= 10 && value.toString().length <= 220;
+      if (field === 'item_weight') return value && Number(value) >= 0.5 && Number(value) <= 10;
       return value;
     });
   };
@@ -436,11 +440,18 @@ export default function MultiCourierModal({
                   <textarea
                     value={pathaoForm.recipient_address}
                     onChange={(e) => handlePathaoChange('recipient_address', e.target.value)}
-                    className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className={`w-full border rounded px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent ${
+                      pathaoForm.recipient_address && (pathaoForm.recipient_address.length < 10 || pathaoForm.recipient_address.length > 220)
+                        ? 'border-red-300 bg-red-50' 
+                        : 'border-gray-300'
+                    }`}
                     rows={2}
-                    placeholder="House 123, Road 456, Dhaka"
+                    placeholder="House 123, Road 4, Sector 10, Uttara, Dhaka-1230, Bangladesh"
                     required
                   />
+                  {pathaoForm.recipient_address && (pathaoForm.recipient_address.length < 10 || pathaoForm.recipient_address.length > 220) && (
+                    <div className="text-xs text-red-600 mt-1">Address must be between 10-220 characters</div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Special Instructions</label>
