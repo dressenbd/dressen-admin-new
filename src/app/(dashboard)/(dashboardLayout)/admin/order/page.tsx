@@ -1,7 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import toast from 'react-hot-toast';
 import * as Tabs from "@radix-ui/react-tabs";
 import { useReactToPrint } from "react-to-print";
@@ -31,6 +29,11 @@ import {
 import {
   useCreateOrderMutation as useSteadfastCreateOrderMutation,
 } from "@/redux/featured/courier/steadfastApi";
+import {
+  useCreateOrderMutation as usePathaoCreateOrderMutation,
+} from "@/redux/featured/courier/pathaoApi";
+import MultiCourierModal from "@/components/courier/MultiCourierModal";
+import { CourierProvider, SteadfastForm, PathaoForm, CourierResult, PendingStatusUpdate } from '@/types/Courier';
 
 type OrderStatus =
   | "pending"
@@ -48,6 +51,8 @@ type Order = {
   total: number;
   status: OrderStatus;
   userType: "sr" | "customer";
+  trackingNumber?: string;
+  courierProvider?: string;
 };
 
 const ORDER_STATUSES: OrderStatus[] = [
@@ -66,14 +71,17 @@ const OrderPage = () => {
 
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
   const [updateOrder] = useUpdateOrderMutation();
-  const [createCourierOrder, { isLoading: courierLoading }] = useSteadfastCreateOrderMutation();
+  const [createSteadfastOrder, { isLoading: steadfastLoading }] = useSteadfastCreateOrderMutation();
+  const [createPathaoOrder, { isLoading: pathaoLoading }] = usePathaoCreateOrderMutation();
 
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<OrderStatus>("pending");
   const [searchValue, setSearchValue] = useState("");
   const [showCourierModal, setShowCourierModal] = useState(false);
   const [selectedOrderForCourier, setSelectedOrderForCourier] = useState<any>(null);
-  const [courierForm, setCourierForm] = useState({
+  const [selectedCourier, setSelectedCourier] = useState<CourierProvider | null>(null);
+  const [courierStep, setCourierStep] = useState<'select' | 'form'>('select');
+  const [steadfastForm, setSteadfastForm] = useState<SteadfastForm>({
     invoice: '',
     recipient_name: '',
     recipient_phone: '',
@@ -81,6 +89,20 @@ const OrderPage = () => {
     cod_amount: 0,
     item_description: '',
     total_lot: 1
+  });
+  const [pathaoForm, setPathaoForm] = useState<PathaoForm>({
+    store_id: 0,
+    merchant_order_id: '',
+    recipient_name: '',
+    recipient_phone: '',
+    recipient_address: '',
+    delivery_type: 48,
+    item_type: 2,
+    special_instruction: '',
+    item_quantity: 1,
+    item_weight: '0.5',
+    item_description: '',
+    amount_to_collect: 0
   });
 
   const [sortType, setSortType] = useState<"customer" | "sr">("customer");
@@ -160,18 +182,39 @@ const OrderPage = () => {
       if (rawOrder) {
         setSelectedOrderForCourier(rawOrder);
         setPendingStatusUpdate({ orderId, newStatus });
-        setCourierForm({
-          invoice: rawOrder._id,
+        
+        // Pre-fill forms with order data
+        const commonData = {
           recipient_name: (rawOrder.customerInfo as any)?.fullName || "Unknown",
           recipient_phone: rawOrder.customerInfo?.phone || "",
           recipient_address: rawOrder.customerInfo?.address || "",
-          cod_amount: rawOrder.totalAmount || 0,
           item_description: rawOrder.orderInfo?.map((item: any) => item?.productInfo?.description?.name).join(", ") || "",
+        };
+        
+        setSteadfastForm({
+          invoice: rawOrder._id,
+          ...commonData,
+          cod_amount: rawOrder.totalAmount || 0,
           total_lot: rawOrder.totalQuantity || 1
         });
-        setCourierResult(null); // Reset previous results
+        
+        setPathaoForm({
+          store_id: 0,
+          merchant_order_id: rawOrder._id,
+          ...commonData,
+          delivery_type: 48,
+          item_type: 2,
+          special_instruction: '',
+          item_quantity: rawOrder.totalQuantity || 1,
+          item_weight: '0.5',
+          amount_to_collect: rawOrder.totalAmount || 0
+        });
+        
+        setCourierResult(null);
+        setSelectedCourier(null);
+        setCourierStep('select');
         setShowCourierModal(true);
-        return; // Don't update status yet, wait for courier order creation
+        return;
       }
     }
 
@@ -222,28 +265,28 @@ const OrderPage = () => {
     }
   };
 
-  // 🔹 Filter orders by SR/Customer + date + search
-  const getFilteredOrders = (status: OrderStatus) => {
-    return (ordersByStatus[status] || [])
-      .filter((item) => {
-        if (sortType === "sr") return item.userType === "sr";
-        return item.userType === "customer";
-      })
-      .filter((item) =>
-        item.order_id.toLowerCase().includes(searchValue.toLowerCase())
-      )
-      .filter((item) => {
-        if (startDate && endDate) {
-          const created = new Date(item.createdAt).getTime();
-          // Adjust start date to be start of the day
-          const start = new Date(startDate).setHours(0, 0, 0, 0);
-          // Adjust end date to be end of the day
-          const end = new Date(endDate).setHours(23, 59, 59, 999);
-          return created >= start && created <= end;
-        }
-        return true;
-      });
-  };
+  // 🔹 Memoized filtered orders for performance
+  const getFilteredOrders = useMemo(() => {
+    return (status: OrderStatus) => {
+      return (ordersByStatus[status] || [])
+        .filter((item) => {
+          if (sortType === "sr") return item.userType === "sr";
+          return item.userType === "customer";
+        })
+        .filter((item) =>
+          item.order_id.toLowerCase().includes(searchValue.toLowerCase())
+        )
+        .filter((item) => {
+          if (startDate && endDate) {
+            const created = new Date(item.createdAt).getTime();
+            const start = new Date(startDate).setHours(0, 0, 0, 0);
+            const end = new Date(endDate).setHours(23, 59, 59, 999);
+            return created >= start && created <= end;
+          }
+          return true;
+        });
+    };
+  }, [ordersByStatus, sortType, searchValue, startDate, endDate]);
 
   // 🔹 Pagination logic
   const filteredOrders = getFilteredOrders(activeTab);
@@ -254,37 +297,65 @@ const OrderPage = () => {
     startIndex + itemsPerPage
   );
 
-  const [courierResult, setCourierResult] = useState<any>(null);
+  const [courierResult, setCourierResult] = useState<CourierResult | null>(null);
   const [ordersWithCourier, setOrdersWithCourier] = useState<Set<string>>(new Set());
-  const [pendingStatusUpdate, setPendingStatusUpdate] = useState<{orderId: string, newStatus: OrderStatus} | null>(null);
+  const [pendingStatusUpdate, setPendingStatusUpdate] = useState<PendingStatusUpdate | null>(null);
 
   const handleCourierOrderCreate = async () => {
+    if (!selectedCourier) return;
+    
     try {
-      const result = await createCourierOrder(courierForm).unwrap();
-      console.log('Courier API Response:', result);
+      let result: any;
+      let trackingCode = 'N/A';
       
-      // Check if the response contains validation errors
-      const resultData = result as any;
-      if (resultData.data?.status === 400 && resultData.data?.errors) {
-        const errors = resultData.data.errors;
-        const errorMessages = Object.entries(errors)
-          .map(([field, messages]) => `${field}: ${(messages as string[]).join(', ')}`)
-          .join('\n');
+      if (selectedCourier === 'steadfast') {
+        result = await createSteadfastOrder(steadfastForm).unwrap();
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Steadfast API Response:', result);
+        }
         
-        setCourierResult({ success: false, error: errorMessages });
-        toast.error(`Validation Error:\n${errorMessages}`);
-        return;
+        // Check for validation errors
+        const resultData = result as any;
+        if (resultData.data?.status === 400 && resultData.data?.errors) {
+          const errors = resultData.data.errors;
+          const errorMessages = Object.entries(errors)
+            .map(([field, messages]) => `${field}: ${(messages as string[]).join(', ')}`)
+            .join('\n');
+          
+          setCourierResult({ success: false, error: errorMessages });
+          toast.error(`Steadfast Validation Error:\n${errorMessages}`);
+          return;
+        }
+        
+        trackingCode = resultData.data?.consignment?.tracking_code || resultData.consignment?.tracking_code || 'N/A';
+      } else if (selectedCourier === 'pathao') {
+        result = await createPathaoOrder(pathaoForm).unwrap();
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Pathao API Response:', result);
+        }
+        
+        // Pathao response structure
+        const resultData = result as any;
+        if (resultData.data?.code !== 200 && resultData.code !== 200) {
+          setCourierResult({ success: false, error: resultData.data?.message || resultData.message || 'Pathao order creation failed' });
+          toast.error(`Pathao Error: ${resultData.data?.message || resultData.message || 'Order creation failed'}`);
+          return;
+        }
+        
+        trackingCode = resultData.data?.data?.consignment_id || 'N/A';
       }
       
       setCourierResult({ success: true, data: result });
-      const trackingCode = resultData.data?.consignment?.tracking_code || resultData.consignment?.tracking_code || 'N/A';
       
-      // Update order with Steadfast tracking code
+      // Update order with tracking code
       if (selectedOrderForCourier && trackingCode !== 'N/A') {
         try {
           await updateOrder({ 
             id: selectedOrderForCourier._id, 
-            payload: { trackingNumber: trackingCode }
+            payload: { 
+              trackingNumber: trackingCode,
+              courierProvider: selectedCourier
+            } as any
           }).unwrap();
         } catch (updateError) {
           console.error('Failed to update tracking number:', updateError);
@@ -296,7 +367,7 @@ const OrderPage = () => {
         setOrdersWithCourier(prev => new Set([...prev, selectedOrderForCourier._id]));
       }
       
-      // Now update the status if there was a pending status update
+      // Update status if pending
       if (pendingStatusUpdate) {
         try {
           await updateOrderStatus({ 
@@ -322,43 +393,75 @@ const OrderPage = () => {
                 [currentStatus]: ordersByStatus[currentStatus].filter(
                   (o) => o.order_id !== pendingStatusUpdate.orderId
                 ),
-                [pendingStatusUpdate.newStatus]: [newOrder, ...ordersByStatus[pendingStatusUpdate.newStatus]],
+                [pendingStatusUpdate.newStatus]: [newOrder, ...ordersByStatus[pendingStatusUpdate.newStatus as OrderStatus]],
               };
               setOrdersByStatus(updatedOrdersByStatus);
             }
           }
           
-          toast.success(`Courier order created successfully! Tracking: ${trackingCode}\nOrder status updated to ${pendingStatusUpdate.newStatus}`);
+          toast.success(`${selectedCourier.toUpperCase()} order created! Tracking: ${trackingCode}\nStatus updated to ${pendingStatusUpdate.newStatus}`);
         } catch (statusError: any) {
           console.error('Status update failed after courier creation:', statusError);
-          toast.success(`Courier order created successfully! Tracking: ${trackingCode}\nPlease manually update the order status.`);
+          toast.success(`${selectedCourier.toUpperCase()} order created! Tracking: ${trackingCode}\nPlease manually update the order status.`);
         }
       } else {
-        toast.success(`Courier order created successfully! Tracking: ${trackingCode}`);
+        toast.success(`${selectedCourier.toUpperCase()} order created! Tracking: ${trackingCode}`);
       }
       
-      // Reset form and close modal
-      setCourierForm({
-        invoice: '',
-        recipient_name: '',
-        recipient_phone: '',
-        recipient_address: '',
-        cod_amount: 0,
-        item_description: '',
-        total_lot: 1
-      });
-      setShowCourierModal(false);
-      setSelectedOrderForCourier(null);
-      setPendingStatusUpdate(null);
+      // Reset and close
+      handleCloseCourierModal();
     } catch (err) {
       const error = err as { data?: { message?: string; success?: boolean }; message?: string; success?: boolean };
       setCourierResult({
         success: false,
         error: error?.data?.message || error?.message || "Something went wrong",
       });
-      toast.error(`Failed to create courier order: ${error?.data?.message || error?.message || "Something went wrong"}`);
+      toast.error(`Failed to create ${selectedCourier} order: ${error?.data?.message || error?.message || "Something went wrong"}`);
     }
   };
+  
+  const handleCloseCourierModal = () => {
+    setShowCourierModal(false);
+    setSelectedOrderForCourier(null);
+    setPendingStatusUpdate(null);
+    setCourierResult(null);
+    setSelectedCourier(null);
+    setCourierStep('select');
+    setSteadfastForm({
+      invoice: '',
+      recipient_name: '',
+      recipient_phone: '',
+      recipient_address: '',
+      cod_amount: 0,
+      item_description: '',
+      total_lot: 1
+    });
+    setPathaoForm({
+      store_id: 0,
+      merchant_order_id: '',
+      recipient_name: '',
+      recipient_phone: '',
+      recipient_address: '',
+      delivery_type: 48,
+      item_type: 2,
+      special_instruction: '',
+      item_quantity: 1,
+      item_weight: '0.5',
+      item_description: '',
+      amount_to_collect: 0
+    });
+  };
+  
+  const handleCourierSelect = useCallback((courier: CourierProvider) => {
+    setSelectedCourier(courier);
+    setCourierStep('form');
+  }, []);
+  
+  const handleBackToSelection = useCallback(() => {
+    setCourierStep('select');
+    setSelectedCourier(null);
+    setCourierResult(null);
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1); // reset page when filters change
@@ -793,150 +896,24 @@ const OrderPage = () => {
         </div>
       )}
 
-      {/* Courier Order Creation Modal */}
-      {showCourierModal && (
-        <div className="bg-[#00000085] fixed top-0 left-0 w-[100vw] h-[100vh] flex items-center justify-center z-50">
-          <div className="relative bg-white p-6 rounded-xl shadow-2xl w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h2 className="text-xl font-semibold">Create Courier Order</h2>
-                {pendingStatusUpdate && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    Status will be updated to: <span className="font-medium capitalize">{pendingStatusUpdate.newStatus.replace("-", " ")}</span>
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => {
-                  setShowCourierModal(false);
-                  setSelectedOrderForCourier(null);
-                  setPendingStatusUpdate(null);
-                  setCourierResult(null);
-                }}
-                className="text-gray-500 hover:text-gray-800 text-2xl"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Number *</label>
-                  <input
-                    type="text"
-                    value={courierForm.invoice}
-                    onChange={(e) => setCourierForm({ ...courierForm, invoice: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Name *</label>
-                  <input
-                    type="text"
-                    value={courierForm.recipient_name}
-                    onChange={(e) => setCourierForm({ ...courierForm, recipient_name: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
-                  <input
-                    type="text"
-                    value={courierForm.recipient_phone}
-                    onChange={(e) => setCourierForm({ ...courierForm, recipient_phone: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">COD Amount *</label>
-                  <input
-                    type="number"
-                    value={courierForm.cod_amount}
-                    onChange={(e) => setCourierForm({ ...courierForm, cod_amount: Number(e.target.value) })}
-                    className="w-full border border-gray-300 rounded px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Total Lot</label>
-                  <input
-                    type="number"
-                    value={courierForm.total_lot}
-                    onChange={(e) => setCourierForm({ ...courierForm, total_lot: Number(e.target.value) })}
-                    className="w-full border border-gray-300 rounded px-3 py-2"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Address *</label>
-                <textarea
-                  value={courierForm.recipient_address}
-                  onChange={(e) => setCourierForm({ ...courierForm, recipient_address: e.target.value })}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  rows={2}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Item Description</label>
-                <textarea
-                  value={courierForm.item_description}
-                  onChange={(e) => setCourierForm({ ...courierForm, item_description: e.target.value })}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  rows={2}
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={handleCourierOrderCreate}
-                  disabled={courierLoading}
-                  className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 disabled:bg-gray-400"
-                >
-                  {courierLoading ? 'Creating...' : 'Create Courier Order'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowCourierModal(false);
-                    setSelectedOrderForCourier(null);
-                    setPendingStatusUpdate(null);
-                    setCourierResult(null);
-                  }}
-                  className="bg-gray-600 text-white px-6 py-2 rounded hover:bg-gray-700"
-                >
-                  Cancel
-                </button>
-              </div>
-
-              {courierResult && courierResult.data && (courierResult.data.consignment || courierResult.data.data?.consignment) && (
-                <div className={`mt-4 p-4 rounded ${courierResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">Consignment Result</h3>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {Object.entries(courierResult.data.data?.consignment || courierResult.data.consignment || {})
-                      .filter(([key]) => !['recipient_email', 'alternative_phone', 'note'].includes(key))
-                      .map(([key, value]) => (
-                        <div key={key} className="bg-slate-50 p-3 rounded-lg flex items-start justify-between border border-slate-100 relative">
-                          <div>
-                            <div className="text-xs text-slate-400">{key.replace(/_/g, ' ').toUpperCase()}</div>
-                            <div className="mt-1 font-medium text-sm break-words">{String(value ?? '—')}</div>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
-
-              {courierResult && !courierResult.success && (
-                <div className="mt-4 p-4 rounded bg-red-50 border border-red-200">
-                  <p className="text-red-800">{courierResult.error}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Multi-Courier Order Creation Modal */}
+      <MultiCourierModal
+        showModal={showCourierModal}
+        courierStep={courierStep}
+        selectedCourier={selectedCourier}
+        pendingStatusUpdate={pendingStatusUpdate}
+        steadfastForm={steadfastForm}
+        pathaoForm={pathaoForm}
+        courierResult={courierResult}
+        steadfastLoading={steadfastLoading}
+        pathaoLoading={pathaoLoading}
+        onClose={handleCloseCourierModal}
+        onCourierSelect={handleCourierSelect}
+        onBackToSelection={handleBackToSelection}
+        onSteadfastFormChange={setSteadfastForm}
+        onPathaoFormChange={setPathaoForm}
+        onCreateOrder={handleCourierOrderCreate}
+      />
     </>
   );
 };
