@@ -221,29 +221,14 @@ export function AppSidebar({
       courierManagement: [
         {
           icon: Truck as IconRenderer,
-          label: "Courier Dashboard",
+          label: "Multi-Courier",
+          href: "/admin/courier/unified",
+        },
+        {
+          icon: Package as IconRenderer,
+          label: "Steadfast Only",
           href: "/admin/courier/dashboard",
         },
-        // {
-        //   icon: Package as IconRenderer,
-        //   label: "Create Order",
-        //   href: "/admin/courier/create-order",
-        // },
-        // {
-        //   icon: Package as IconRenderer,
-        //   label: "Bulk Orders",
-        //   href: "/admin/courier/bulk-order",
-        // },
-        // {
-        //   icon: MapPin as IconRenderer,
-        //   label: "Track Delivery",
-        //   href: "/admin/courier/track-delivery",
-        // },
-        // {
-        //   icon: ArrowRight as IconRenderer,
-        //   label: "Return Requests",
-        //   href: "/admin/courier/return-requests",
-        // },
       ],
 
       orderVendor: [

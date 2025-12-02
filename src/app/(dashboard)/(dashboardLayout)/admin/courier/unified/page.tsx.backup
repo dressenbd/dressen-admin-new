@@ -1,0 +1,304 @@
+"use client"
+import React, { useState } from 'react';
+import toast from 'react-hot-toast';
+import {
+  useGetBalanceQuery,
+  useCreateOrderMutation,
+  useBulkCreateOrdersMutation,
+  useLazyGetStatusByInvoiceQuery,
+  useCreateReturnRequestMutation,
+  useGetReturnRequestsQuery,
+  ISteadfastOrder,
+} from "@/redux/featured/courier/steadfastApi";
+import {
+  useCreateOrderMutation as usePathaoCreateOrder,
+  useBulkCreateOrdersMutation,
+  useLazyGetOrderInfoQuery,
+  IPathaoOrder,
+} from "@/redux/featured/courier/pathaoApi";
+
+type CourierProvider = 'steadfast' | 'pathao';
+type ActiveTab = 'balance' | 'order' | 'bulk' | 'tracking' | 'returns';
+
+export default function UnifiedCourierDashboard() {
+  const [selectedCourier, setSelectedCourier] = useState<CourierProvider>('steadfast');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('order');
+  
+  // Steadfast APIs
+  const { data: balance, refetch: refetchBalance } = useGetBalanceQuery();
+  const [createOrder, { isLoading: orderLoading }] = useCreateOrderMutation();
+  const [bulkCreateOrders, { isLoading: bulkLoading }] = useBulkCreateOrdersMutation();
+  const [getStatusByInvoice] = useLazyGetStatusByInvoiceQuery();
+  const [createReturn, { isLoading: returnLoading }] = useCreateReturnRequestMutation();
+  const { data: allReturns, refetch: refetchReturns } = useGetReturnRequestsQuery();
+  
+  // Pathao APIs
+  const [createPathaoOrder, { isLoading: pathaoLoading }] = usePathaoCreateOrder();
+  const [bulkCreatePathaoOrders, { isLoading: pathaoBulkLoading }] = useBulkCreateOrdersMutation();
+  const [getPathaoOrderInfo] = useLazyGetOrderInfoQuery();
+
+  // Order Form
+  const [orderForm, setOrderForm] = useState({
+    invoice: '',
+    recipient_name: '',
+    recipient_phone: '',
+    recipient_address: '',
+    cod_amount: 0,
+    item_description: '',
+    store_id: 0,
+    item_weight: '0.5',
+    item_quantity: 1,
+  });
+
+  // Bulk Orders
+  const [bulkOrders, setBulkOrders] = useState<any[]>([{
+    invoice: '',
+    recipient_name: '',
+    recipient_phone: '',
+    recipient_address: '',
+    cod_amount: 0,
+    store_id: 0,
+    item_weight: '0.5',
+    item_quantity: 1,
+  }]);
+
+  // Tracking
+  const [trackingInput, setTrackingInput] = useState('');
+  const [trackingResult, setTrackingResult] = useState<any>(null);
+
+  // Returns
+  const [returnForm, setReturnForm] = useState({
+    consignment_id: '',
+    invoice: '',
+    tracking_code: '',
+    reason: ''
+  });
+
+  const [orderResult, setOrderResult] = useState<any>(null);
+  const [bulkResult, setBulkResult] = useState<any>(null);
+  const [returnResult, setReturnResult] = useState<any>(null);
+
+  const handleCreateOrder = async () => {
+    try {
+      if (selectedCourier === 'steadfast') {
+        const result = await createOrder(orderForm).unwrap();
+        const trackingCode = result.data?.consignment?.tracking_code || result.consignment?.tracking_code || 'N/A';
+        setOrderResult({ success: true, data: result });
+        toast.success(`Order created! Tracking: ${trackingCode}`);
+      } else {
+        const result = await createPathaoOrder({
+          store_id: orderForm.store_id,
+          merchant_order_id: orderForm.invoice,
+          recipient_name: orderForm.recipient_name,
+          recipient_phone: orderForm.recipient_phone,
+          recipient_address: orderForm.recipient_address,
+          delivery_type: 48,
+          item_type: 2,
+          item_quantity: orderForm.item_quantity,
+          item_weight: orderForm.item_weight,
+          item_description: orderForm.item_description,
+          amount_to_collect: orderForm.cod_amount,
+        }).unwrap();
+        setOrderResult({ success: true, data: result });
+        toast.success(`Order created! Consignment: ${result.data.consignment_id}`);
+      }
+      setOrderForm({ invoice: '', recipient_name: '', recipient_phone: '', recipient_address: '', cod_amount: 0, item_description: '', store_id: 0, item_weight: '0.5', item_quantity: 1 });
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Failed');
+    }
+  };
+
+  const handleBulkOrder = async () => {
+    try {
+      if (selectedCourier === 'steadfast') {
+        const result = await bulkCreateOrders(bulkOrders).unwrap();
+        setBulkResult({ success: true, data: result });
+        toast.success('Bulk orders created!');
+      } else {
+        const pathaoOrders = bulkOrders.map(o => ({
+          store_id: o.store_id,
+          merchant_order_id: o.invoice,
+          recipient_name: o.recipient_name,
+          recipient_phone: o.recipient_phone,
+          recipient_address: o.recipient_address,
+          delivery_type: 48,
+          item_type: 2,
+          item_quantity: o.item_quantity,
+          item_weight: o.item_weight,
+          amount_to_collect: o.cod_amount,
+        }));
+        const result = await bulkCreatePathaoOrders(pathaoOrders).unwrap();
+        setBulkResult({ success: true, data: result });
+        toast.success('Bulk orders submitted!');
+      }
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Failed');
+    }
+  };
+
+  const handleTracking = async () => {
+    try {
+      if (selectedCourier === 'steadfast') {
+        const result = await getStatusByInvoice(trackingInput).unwrap();
+        setTrackingResult({ success: true, data: result });
+      } else {
+        const result = await getPathaoOrderInfo(trackingInput).unwrap();
+        setTrackingResult({ success: true, data: result });
+      }
+    } catch (err: any) {
+      toast.error('Tracking failed');
+    }
+  };
+
+  const handleCreateReturn = async () => {
+    if (selectedCourier === 'pathao') {
+      toast.error('Returns not available for Pathao yet');
+      return;
+    }
+    try {
+      const result = await createReturn(returnForm).unwrap();
+      setReturnResult({ success: true, data: result });
+      refetchReturns();
+      toast.success('Return request created!');
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Failed');
+    }
+  };
+
+  const tabs = [
+    { id: 'balance' as ActiveTab, label: '💰 Balance', disabled: selectedCourier === 'pathao' },
+    { id: 'order' as ActiveTab, label: '📦 Create Order', disabled: false },
+    { id: 'bulk' as ActiveTab, label: '📦 Bulk Orders', disabled: false },
+    { id: 'tracking' as ActiveTab, label: '📍 Tracking', disabled: false },
+    { id: 'returns' as ActiveTab, label: '🔄 Returns', disabled: selectedCourier === 'pathao' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header with Courier Selector */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h1 className="text-2xl font-bold mb-4">Courier Management</h1>
+          <div className="flex gap-4">
+            <button
+              onClick={() => setSelectedCourier('steadfast')}
+              className={`flex-1 py-3 px-4 rounded-lg border-2 transition-all ${selectedCourier === 'steadfast' ? 'border-blue-600 bg-blue-50' : 'border-gray-200'}`}
+            >
+              <div className="font-semibold">🚚 Steadfast</div>
+              {balance && <div className="text-sm text-gray-600">Balance: {balance.current_balance} {balance.currency}</div>}
+            </button>
+            <button
+              onClick={() => setSelectedCourier('pathao')}
+              className={`flex-1 py-3 px-4 rounded-lg border-2 transition-all ${selectedCourier === 'pathao' ? 'border-green-600 bg-green-50' : 'border-gray-200'}`}
+            >
+              <div className="font-semibold">📦 Pathao</div>
+              <div className="text-sm text-gray-600">Fast Delivery</div>
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="flex border-b">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => !tab.disabled && setActiveTab(tab.id)}
+                disabled={tab.disabled}
+                className={`px-6 py-3 font-medium transition-colors ${activeTab === tab.id ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'} ${tab.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:text-gray-800'}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="p-6">
+            {activeTab === 'balance' && selectedCourier === 'steadfast' && (
+              <div>
+                <button onClick={() => refetchBalance()} className="bg-blue-600 text-white px-4 py-2 rounded">Refresh Balance</button>
+                {balance && <div className="mt-4 p-4 bg-green-50 rounded"><strong>Balance:</strong> {balance.current_balance} {balance.currency}</div>}
+              </div>
+            )}
+
+            {activeTab === 'order' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <input type="text" placeholder="Invoice" value={orderForm.invoice} onChange={(e) => setOrderForm({...orderForm, invoice: e.target.value})} className="border rounded px-3 py-2" />
+                  <input type="text" placeholder="Recipient Name" value={orderForm.recipient_name} onChange={(e) => setOrderForm({...orderForm, recipient_name: e.target.value})} className="border rounded px-3 py-2" />
+                  <input type="text" placeholder="Phone" value={orderForm.recipient_phone} onChange={(e) => setOrderForm({...orderForm, recipient_phone: e.target.value})} className="border rounded px-3 py-2" />
+                  <input type="number" placeholder="COD Amount" value={orderForm.cod_amount} onChange={(e) => setOrderForm({...orderForm, cod_amount: Number(e.target.value)})} className="border rounded px-3 py-2" />
+                  {selectedCourier === 'pathao' && (
+                    <>
+                      <input type="number" placeholder="Store ID" value={orderForm.store_id} onChange={(e) => setOrderForm({...orderForm, store_id: Number(e.target.value)})} className="border rounded px-3 py-2" />
+                      <input type="text" placeholder="Weight (kg)" value={orderForm.item_weight} onChange={(e) => setOrderForm({...orderForm, item_weight: e.target.value})} className="border rounded px-3 py-2" />
+                    </>
+                  )}
+                </div>
+                <textarea placeholder="Address" value={orderForm.recipient_address} onChange={(e) => setOrderForm({...orderForm, recipient_address: e.target.value})} className="w-full border rounded px-3 py-2" rows={2} />
+                <button onClick={handleCreateOrder} disabled={orderLoading || pathaoLoading} className="bg-green-600 text-white px-6 py-2 rounded">Create Order</button>
+                {orderResult && <div className="mt-4 p-4 bg-green-50 rounded"><pre className="text-sm">{JSON.stringify(orderResult, null, 2)}</pre></div>}
+              </div>
+            )}
+
+            {activeTab === 'bulk' && (
+              <div>
+                {bulkOrders.map((order, i) => (
+                  <div key={i} className="mb-4 p-4 border rounded">
+                    <div className="grid grid-cols-2 gap-4">
+                      <input type="text" placeholder="Invoice" value={order.invoice} onChange={(e) => { const newOrders = [...bulkOrders]; newOrders[i].invoice = e.target.value; setBulkOrders(newOrders); }} className="border rounded px-3 py-2" />
+                      <input type="text" placeholder="Name" value={order.recipient_name} onChange={(e) => { const newOrders = [...bulkOrders]; newOrders[i].recipient_name = e.target.value; setBulkOrders(newOrders); }} className="border rounded px-3 py-2" />
+                      <input type="text" placeholder="Phone" value={order.recipient_phone} onChange={(e) => { const newOrders = [...bulkOrders]; newOrders[i].recipient_phone = e.target.value; setBulkOrders(newOrders); }} className="border rounded px-3 py-2" />
+                      <input type="number" placeholder="COD" value={order.cod_amount} onChange={(e) => { const newOrders = [...bulkOrders]; newOrders[i].cod_amount = Number(e.target.value); setBulkOrders(newOrders); }} className="border rounded px-3 py-2" />
+                      {selectedCourier === 'pathao' && (
+                        <>
+                          <input type="number" placeholder="Store ID" value={order.store_id} onChange={(e) => { const newOrders = [...bulkOrders]; newOrders[i].store_id = Number(e.target.value); setBulkOrders(newOrders); }} className="border rounded px-3 py-2" />
+                          <input type="text" placeholder="Weight" value={order.item_weight} onChange={(e) => { const newOrders = [...bulkOrders]; newOrders[i].item_weight = e.target.value; setBulkOrders(newOrders); }} className="border rounded px-3 py-2" />
+                        </>
+                      )}
+                    </div>
+                    <textarea placeholder="Address" value={order.recipient_address} onChange={(e) => { const newOrders = [...bulkOrders]; newOrders[i].recipient_address = e.target.value; setBulkOrders(newOrders); }} className="w-full border rounded px-3 py-2 mt-2" rows={2} />
+                  </div>
+                ))}
+                <button onClick={() => setBulkOrders([...bulkOrders, { invoice: '', recipient_name: '', recipient_phone: '', recipient_address: '', cod_amount: 0, store_id: 0, item_weight: '0.5', item_quantity: 1 }])} className="bg-gray-600 text-white px-4 py-2 rounded mr-2">+ Add Order</button>
+                <button onClick={handleBulkOrder} disabled={bulkLoading || pathaoBulkLoading} className="bg-purple-600 text-white px-6 py-2 rounded">Create Bulk Orders</button>
+                {bulkResult && <div className="mt-4 p-4 bg-green-50 rounded"><pre className="text-sm">{JSON.stringify(bulkResult, null, 2)}</pre></div>}
+              </div>
+            )}
+
+            {activeTab === 'tracking' && (
+              <div>
+                <div className="flex gap-4">
+                  <input type="text" placeholder={selectedCourier === 'steadfast' ? 'Enter Invoice' : 'Enter Consignment ID'} value={trackingInput} onChange={(e) => setTrackingInput(e.target.value)} className="flex-1 border rounded px-3 py-2" />
+                  <button onClick={handleTracking} className="bg-blue-600 text-white px-6 py-2 rounded">Track</button>
+                </div>
+                {trackingResult && <div className="mt-4 p-4 bg-blue-50 rounded"><pre className="text-sm">{JSON.stringify(trackingResult, null, 2)}</pre></div>}
+              </div>
+            )}
+
+            {activeTab === 'returns' && selectedCourier === 'steadfast' && (
+              <div>
+                <div className="space-y-4">
+                  <input type="text" placeholder="Consignment ID" value={returnForm.consignment_id} onChange={(e) => setReturnForm({...returnForm, consignment_id: e.target.value})} className="w-full border rounded px-3 py-2" />
+                  <textarea placeholder="Reason" value={returnForm.reason} onChange={(e) => setReturnForm({...returnForm, reason: e.target.value})} className="w-full border rounded px-3 py-2" rows={2} />
+                  <button onClick={handleCreateReturn} disabled={returnLoading} className="bg-orange-600 text-white px-6 py-2 rounded">Create Return</button>
+                </div>
+                {returnResult && <div className="mt-4 p-4 bg-green-50 rounded"><pre className="text-sm">{JSON.stringify(returnResult, null, 2)}</pre></div>}
+                {allReturns && allReturns.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="font-semibold mb-2">All Returns</h3>
+                    {allReturns.map((ret, i) => (
+                      <div key={i} className="p-3 bg-gray-50 border rounded mb-2">
+                        <p><strong>ID:</strong> {ret.id}</p>
+                        <p><strong>Status:</strong> {ret.status}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
